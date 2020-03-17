@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>C言語による乱数生成</title>
+	<meta charset="utf-8">
+	<meta name="title" content="C言語による乱数生成">
+	<meta name="description" content="本文章はC言語を用いて様々な確率分布に従う乱数を生成する方法やコードをまとめたものである。rand関数やメルセンヌ・ツイスタを用いた一様乱数の生成から始まり, 正規分布・指数分布等の様々な確率分布に従う乱数の生成方法について解説する。">
+	<meta name="keywords" content="C言語,乱数,rand,メルセンヌツイスタ,一様乱数,正規分布,指数分布">
+
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<link rel="shortcut icon" href="./figure/mt.jpg">
+	<link rel="canonical" href="https://omitakahiro.github.io/random/random_variables_generation.html">
+
+	<script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js?skin=sunburst"></script>
+
+	<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+	<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.0.0/es5/tex-mml-chtml.js"></script>
+	<script>
+		window.MathJax = {
+  			tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }
+		};
+	</script>
+
+	<link rel="stylesheet" href="./style.css">
+	
+</head>
+
+<body Bgcolor="FFFFFF" style='font-size:12pt'>
+
+<div class="theme">
+
+<h1>C言語による乱数生成</h1>
+
+
+本文章はC言語を用いて様々な確率分布に従う乱数を生成する方法やコードをまとめたものである。rand関数やメルセンヌ・ツイスタの使い方から始まり, 正規分布・指数分布等の様々な確率分布に従う乱数の生成方法について解説する。このページは<a href="https://sites.google.com/view/omitakahiro">近江崇宏</a>によって作られました。コードはご自由にお使いになってかまいませんが、バグ等によって生じた損失に対する責任は負いません。<br><br>
+
+<div class="highlight2">&nbsp;&nbsp;&nbsp;<u><b>道しるべ:</b></u><br>
+&nbsp;&nbsp;&nbsp;&nbsp;・Ｃ言語でお手軽に整数の乱数を発生させたい人<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ==> <a href="#Prepare_rand">C言語のrand関数の使い方</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;・メルセンヌ・ツイスタの使い方を知りたい人<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ==> <a href="#Prepare_MT">メルセンヌ・ツイスタの使い方</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;・一様乱数の生成方法を知りたい人<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ==> <a href="#Uniform">一様乱数</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;・様々な確率分布に従う乱数生成法を知りたい人<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ==> <a href="#RandomNumberGeneration">各種の確率分布に従う乱数の生成法</a>
+</div><br>
+
+<ol>
+<li><a href="#Introduction">入門編</a></li>
+<ol>
+<li><a href="#Prepare_rand">C言語のrand関数の使い方</a></li>
+<li><a href="#Prepare_MT">メルセンヌ・ツイスタの使い方</a></li>
+</ol>
+<li><a href="#Fundation">乱数生成の基礎</a></li>
+<ol>
+<li><a href="#Uniform">一様乱数 (Uniform Random Number)</a></li>
+<ol>
+<li><a href="#rand">C言語のrand関数</a></li>
+<li><a href="#LCM">線形合同法 (Linear Congruential Method)</a></li>
+<li><a href="#Mersenne">メルセンヌ・ツイスタ (Mersenne Twister)</a></li>
+<li><a href="#Comparison">乱数の質の比較〜特に線形合同法の欠点について</a></li>
+</ol>
+<li><a href="#Inverse">逆変換法 (Inverse Transform Method)</a></li>
+<li><a href="#MonteCarlo">モンテカルロ法</a></li>
+</ol>
+<li><a href="#RandomNumberGeneration">各種の確率分布に従う乱数の生成法</a></li>
+<ol>
+<li><a href="#Note">プログラム使用について</a></li>
+<li><a href="#Exponential">指数分布 (Exponential Distribution)</a></li>
+<li><a href="#Gauss">正規分布・ガウス分布 (Normal Distribution)</a></li>
+<li><a href="#Chi-squared">カイ二乗分布 (Chi-squared Distribution)</a></li>
+<li><a href="#Cauchy">コーシー分布 (Cauchy Distribution)</a></li>
+<li><a href="#Lognormal">対数正規分布 (Lognormal Distribution)</a></li>
+<li><a href="#InverseGauss">逆正規分布 (Inverse Gauss Distribution)</a></li>
+<li><a href="#Gamma">ガンマ分布 (Gamma Distribution)</a></li>
+</ol>
+<li><a href="#Code">ソースコード</a></li>
+<li><a href="#Reference">参考文献</a></li>
+</ol>
+
+<h2><a name="Introduction">1. 入門編</a></h2>
+
+<h3><a name="Prepare_rand">1.1. C言語のrand関数の使い方</a></h3>
+C言語には乱数を生成するrand関数が標準装備されている。この章はこのrand関数を用いて”お手軽に”乱数を生成する方法を説明する。ただし2章でみるようにrand関数にはいくつかの問題があるために、ここで書かれた方法を研究などに使用することは推奨されないということに注意されたい。あくまでも導入のための”お手軽”な方法である。<br><br>
+rand関数は$0$からRAND_MAXの範囲の整数の乱数を出力する。RAND_MAXは次のコードで確認できる。
+<pre class="prettyprint linenums">
+#include &ltstdio.h>
+#include &ltstdlib.h>
+
+int main(void){
+	printf("RAND_MAX=%d\n",RAND_MAX);
+}
+</pre>
+次のコードはrand関数を用いて$0$からRAND_MAXの整数の乱数を100個出力するコードである。
+<pre class="prettyprint linenums">
+#include &ltstdio.h>
+#include &ltstdlib.h>
+
+int main(void){
+	int i;
+	srand(10);
+	for(i=0;i<100;i++){
+		printf("%d\n",rand());
+	}
+}
+</pre>
+rand関数を使うためにはまず始めにstdlib.hをインクルードしなければならない(2行目)。6行目のsrand(10)は乱数の種（シード）を決めるものである。このコードではsrand関数に10を入力しているが、入力する値が同じであればrand関数は同じ乱数列を出力する。異なる乱数列が欲しいときにはsrand関数に別の値を入力すればいい。また実行毎に自動的にシードをかえたいときには
+<pre class="prettyprint linenums">
+#include &ltstdio.h>
+#include &lttime.h>
+#include &ltstdlib.h>
+
+int main(void){
+	int i;
+	srand((unsigned)time(NULL));
+	for(i=0;i<100;i++){
+		printf("%d\n",rand());
+	}
+}
+</pre>
+のように、現在時刻をシードとして使えばよい(7行目)。このtime関数を用いるためにはtime.hをインクルードする必要がある（2行目）。<br><br>
+上ではrand関数をそのまま用いていたが、実用上はある範囲の整数の乱数を得ることが多い。例えばさいころをシミュレートするときには1から6の整数の乱数が欲しい。この場合には、
+<pre class="prettyprint linenums">
+#include &ltstdio.h>
+#include &ltstdlib.h>
+
+int main(void){
+	int i;
+	srand(10);
+	for(i=0;i<100;i++){
+		printf("%d\n",rand()%6+1);
+	}
+}
+</pre>
+とすればよい。7行目のrand()%6はrand()を6で割ったあまりを出力する演算子で、rand()%6は0から5の整数の乱数を返す。よってrand()%6+1は1から6の乱数を出力するのである。<br><br>
+より一般的にAからBの整数の乱数が欲しいときには上のコードの7行目を
+<pre class="prettyprint linenums">
+rand()%(B-A+1)+A;
+</pre>
+に返ればよい。
+
+<h3><a name="Prepare_MT">1.2. メルセンヌ・ツイスタの使い方</a></h3>
+優れた乱数生成アルゴリズムであるメルセンヌ・ツイスタの使用方法のまとめである。性能の評価については２章(<a href="#Comparison">乱数の質の比較〜特に線形合同法の欠点について</a>)を参照のこと。メルセンヌ・ツイスタのCコードは開発者により公開されている（<a href="http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/MT2002/mt19937ar.html">Link</a>）。まず準備としてメルセンヌ・ツイスタの関数のヘッダーファイル<a href="./code/MT.h">MT.h</a>を作る(<-めんどくさければこれをダウンロードしてください。)を作る。このサイトから、<a href="http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/MT2002/CODES/mt19937ar.c">Cソース</a>をダウンロードし、44行目の#include&ltstdio.h>と174行目以降のint main(void){・・・}を消し、ファイル名をMT.hに変える。これでヘッダーファイルの完成である。後はMT.hをメルセンヌツイスタを使うプログラムがあるフォルダに入れて準備が完了である。<br><br>
+次のコードはメルセンヌ・ツイスタの関数genrand_int32()を用いて整数の乱数を100個出力するコードである。
+<pre class="prettyprint linenums">
+#include &ltstdio.h>
+#include "MT.h"
+
+int main(void){
+	int i;
+	init_genrand(10);
+	for(i=0;i<100;i++){
+		printf("%ld\n",genrand_int32());
+	}
+}
+</pre>
+メルセンヌツイスタの関数を使うためには、まず"MT.h"をインクルードし(2行目)、init_genrand(seed)で乱数の初期化(6行目)を行わなくてなならない。seedの値を変えることで異なる乱数列を得ることができる。ここでメルセンヌ・ツイスタの関数genrand_int32()は$[0,2^{32}-1]$の範囲の整数の乱数を返す(7行目)。またgenrand_int32()の出力は長整数型なのでprintfでの表示には%ldを用いる(7行目)<br><br>
+シードを現在時刻にしたいときには、次のコードのように
+<pre class="prettyprint linenums">
+#include &ltstdio.h>
+#include &lttime.h>
+#include "MT.h"
+
+int main(void){
+	int i;
+	init_genrand((unsigned)time(NULL));
+	for(i=0;i<100;i++){
+		printf("%ld\n",genrand_int32());
+	}
+}
+</pre>
+さらにtime.hをインクルードし(2行目)、init_genrand((unsigned)time(NULL))で現在時刻で乱数の初期化を行えばよい(7行目)。これで実行ごとに異なる乱数列を得られる。<br><br>
+AからBの範囲の整数の乱数が欲しいときには
+<pre class="prettyprint linenums">
+genrand_int32()%(B-A+1)+A;
+</pre>
+のような関数を用いればよい。<br><br>
+Mersenne Twisterには乱数の関数として以下のも関数が用意されている。
+<pre class="prettyprint linenums">
+genrand_int32() //符号なし32ビット長整数
+genrand_int31() //符号なし31ビット長整数
+genrand_real1() //一様実乱数[0,1] (32ビット精度)
+genrand_real2() //一様実乱数[0,1) (32ビット精度)
+genrand_real3() //一様実乱数(0,1) (32ビット精度)
+genrand_res53() //一様実乱数[0,1) (53ビット精度)
+</pre><br>
+
+
+
+<h2><a name="Fundation">2. 乱数生成の基礎</a></h2>
+乱数とは”ランダム”な数である。乱数の厳密な定義はさておき、乱数は過去の乱数から予測できない予測不可能性や、いくら大きな列をとっても非周期であるという非周期性、分布に偏りがない均等性などによって特徴づけられる。このような乱数がシミュレーション、暗号作成、統計推定など様々な分野において重要な役割を果たしている。<br><br>
+我々がコンピューターで乱数を扱う際には、上でも見たように特定のアルゴリズムによって乱数を模した擬似乱数を生成して、これを乱数の代わりに用いる。本来ならば擬似乱数も乱数と同じ性質を持つべきである。しかしながら擬似乱数は決定論的なアルゴリズムから生成されているため、乱数と違い周期性、予測可能性や分布の偏りがどうしても生じてしまう。そのため研究等で精度の高い解析を得るためには、精度の高い生成アルゴリズムを用いることが重要である。簡単のため以下では乱数と言った時には擬似乱数をさすものとする。<br><br>
+この章ではまず一様乱数を例にして、アルゴリズムの精度の違いが乱数の質にどのように現れるかを見ていく。その後、より複雑な確率分布に従う乱数を生成するための一般的な方法論について述べる。
+
+<h3><a name="Uniform">2.1. 一様乱数 (Uniform Random Number)</a></h3>
+一様乱数は一様分布
+<div class="dist">$$p(x)=1\ \ \ (0 \lt x \lt 1)$$</div>
+に従う乱数である。次に記述する逆関数法やモンテカルロ法によって、一様乱数からより複雑な乱数を生成することができるという意味で、一様乱数は最も基礎的な乱数の1つである。<br><br>
+C言語を用いて一様乱数を生成する最も簡単な方法は、C言語に標準装備されているrand関数を用いることである。このrand関数は線形合同法という比較的容易な方法に基づいている。しかしながらこれらの方法で生成された乱数列は周期が短いといった問題があるため、研究などでの使用は推奨されない。精度が高い乱数生成法としてはMersenne Twister(メルセンヌ・ツイスタ)がある。その乱数の周期は非常に長く、高度な解析においてはMersenne Twisterを使うことが推奨される。<br><br>
+<div class="highlight"><b>乱数の精度</b>：線形合同法、rand関数&nbsp<<&nbspMersenne Twister</div><br>
+以下ではまずそれぞれの方法の詳細をみていき、最後にこれらの方法で得られた乱数の質の比較を行う。
+
+
+<h4><a name="rand">2.1.1 C言語のrand関数を用いた方法</a></h4>
+C言語の関数rand();は０〜RAND_MAXの擬似乱数（整数）を出力する。(rand()+1)/(RAND_MAX+2)のように規格化することで一様乱数を生成できる。
+<pre class="prettyprint linenums">
+#include&ltstdlib.h>
+
+double Uniform( void ){
+	return ((double)rand()+1.0)/((double)RAND_MAX+2.0);
+}
+</pre>
+注：rand関数の基本的な使用法は１章(<a href="#Prepare_rand">C言語のrand関数の使い方</a>)を参照のこと。rand関数の使用にはstdlib.hのインクルードが必要である。乱数の初期化はsrand(unsigned seed)で行う。
+
+
+<h4><a name="LCM">2.1.2 線形合同法(Linear Congruential Generator)を用いた方法</a></h4>
+線形合同法は定数$a,b,m$に対して、$x_{i+1}=ax_i+b \mod m$の漸化式で$0$から$m-1$の乱数（整数）を生成する。ここで$\mod\ m$は$m$で割った時のあまりを表している。周期は最大で$m$である。$(x+1)/(m+1)$と規格化することで一様乱数が得られる。
+<pre class="prettyprint linenums">
+double Uniform( void ){
+	static int x=10;
+	int a=1103515245,b=12345,c=2147483647;
+	x = (a*x + b)&c;
+
+	return ((double)x+1.0) / ((double)c+2.0);
+}
+</pre>
+注：このコードは$a=1103515245$,$b=12345$,$m=2^{31}$に対応する。また二行目のxの値を変えることで乱数の初期値(シード)を変えることが出来る。
+
+
+
+<h4><a name="Mersenne">2.1.3 Mersenne Twisterを用いた方法&nbsp;[推奨]</a></h4>
+Mersenne Twisterではgenrand_real3()が一様乱数を返す。ここでは表記の一貫性からUniform()がgenrand_real3()を返すものとする。
+<pre class="prettyprint linenums">
+#include "MT.h"
+
+double Uniform( void ){
+	return genrand_real3();
+}
+</pre>
+注：Mersenne Twisterの使い方は１章(<a href="#Prepare_MT">メルセンヌツイスタの使い方</a>)を参照のこと。Mersenne Twisterの使用にはMT.hのインクルードが必要である。乱数の初期化はinit_genrand(unsigned seed)で行う。
+
+
+<h4><a name="Comparison">2.1.4. 乱数の質の比較〜特に線形合同法の欠点について</a></h4>
+ここでは線形合同法とMersenne Twisterの比較を行う。線形合同法は比較的容易な方法であるが様々な短所があることが知られている。その一方でMersenne Twisterは優れたアルゴリズムとして知られている。アルゴリズムの質を評価するのにはいくつかの指標が考えられるが、ここでは得られた乱数列の周期、予測可能性、及び多次元分布の一様性に着目する。<br><br>
+まず周期であるが
+<div class="highlight">&nbsp;&nbsp;&nbsp;乱数列の周期：線形合同法($2^{31}$)&nbsp<<&nbspMersenne Twister($2^{19937}-1$)</div>
+と線形合同法にくらべてMersenne Twisterは非常に長い。Merenne Twisterの周期は一般的に実用上問題がないほど長い。<br><br>
+
+次に多次元分布の均質性である。線形合同法では一個ずつ乱数$x_i$を用いれば、その経験分布$P(x_i)$は一様である。しかしながらいくつかの乱数$(x_i,x_{i+1},\cdots,x_{i+n})$を組み合わせて用いると、その経験分布$P(x_i,x_{i+1},\cdots,x_{i+n})$は一様ではない。下の図はそれぞれの方法で乱数をサンプルしながら、三次元ベクトル$(x_i,x_{i+1},x_{i+2})$をプロットしたものである。もし各乱数が独立な一様分布に従っているならば、各点が空間上に一様に分布していることが期待される。しかしながら線形合同法を用いた場合には分布に特定の構造があることがわかる（左図）。このためいくつかの乱数を組み合わせて用いるときには注意が必要である。メルセンヌツイスタの場合にはこのような分布の偏りは見られない（右図）。Mersenne Twisterの分布の均等性は623次元以下では保証されている。
+<center><img src="./figure/lcm.jpg" class='resize' ><img src="./figure/mt.jpg" class='resize'></center>
+
+<h3><a name="Inverse">2.2. 逆変換法 (Inverse Transform Method)</a></h3>
+逆変換法は得られた乱数（例えば一様乱数）をさらに関数で変換することによって、望みの確率分布に従う乱数を得る方法である。
+いま確率分布$p(x)$が与えられたとき、新たな変数$y(x)$の従う確率分布は$p(y)=p(x)|dx/dy|$である。このことより$p(x)$から生成された乱数$\{x\}$を$\{y(x)\}$に変換することで$p(y)$に従う乱数を生成できるのである。例えばのちに述べる指数乱数は一様乱数$x$を$-log(x)$と変換することで得られる。<br><br>
+次にこのことを利用し任意の確率分布$f(x)$に従う乱数$\{x\}$を、与えられた確率分布$g(y)$からサンプルされた乱数$\{y\}$を変換することによって生成することを考える。このためには、
+<div class="highlight">
+&nbsp;&nbsp;&nbsp;１．変数変換$y=z(x)$の関数形を求める。<br>
+&nbsp;&nbsp;&nbsp;２．確率分布$g(y)$から乱数を生成する。<br>
+&nbsp;&nbsp;&nbsp;３．変数変換$x=z^{-1}(y)$を行う。<br>
+</div>
+とすればよい。一連の流れは次の図のようにまとめられる。<br><br>
+<center><img src="./figure/inverse_transform.png" class='resize'></center>
+
+<h4><a name="example_Inverse">2.2.1 例：指数分布</a></h4>
+ここで平均1の指数分布$P(x)=\exp(-x)\ \ (x \geq 0)$に従う乱数の生成法を考えよう。この時には、新しい変数として$y=exp(-x)$を考えよう。すると$y$の従う確率分布は変数変換の公式から
+$$P(y)=P(X)|\frac{dx}{dy}|=1\ (0 \le y \le 1)$$
+の一様分布になる。よって$y$は一様乱数で生成した後に、逆変換$x=-log(y)$により、指数分布に従う乱数$x$を生成できる。
+
+
+<h3><a name="MonteCarlo">2.3. モンテカルロ法</a></h3>
+モンテカルロ法は乱数を用いて確率的な過程を再現する方法である。単純な例では、ここで各試行において1/3の確率である発生するある事象Aを数値的にシミュレーションすることを考えよう。この時には、まず[0,1]の一様乱数$Y$を生成し、$Y$が1/3以下ならAが発生した、それ以外ならばAは発生しなかったと見なせばよい。<br><br>
+
+より一般的に、確率分布$f(x)$に従う乱数を生成する方法について考えよう。ここで、確率分布$g(x)$に従う乱数をなんらかの方法で生成することが可能であり、$f(x)\le \alpha g(x)$を満たすような定数$\alpha$が存在するとする。その場合には、$g(x)$に従う乱数$X$と[0,1]の一様乱数Yを生成し、$\displaystyle \frac{f(X)}{\alpha g(X)}\le Y$ならば、Xを採択するという方法を取れば、Xは確率分布$f(x)$に従う。
+<br>
+
+
+
+
+
+
+
+<br><br>
+<h2><a name="RandomNumberGeneration">3. 各種の確率分布に従う乱数の生成法</a></h2>
+以下では上で述べた逆変換法やモンテカルロ法を用いて、様々な非一様な確率分布に従う乱数を生成する方法について述べる。
+
+<h3><a name="Note">3.1. プログラム使用について</a></h3>
+各プログラムについては、出来るだけ単体で使えるような記述を心がけているが、ほとんど全ての乱数生成において一様乱数が必要になることから、$(0,1)$の一様乱数を生成する関数Uniform()はすでに与えられているとする（つまり、同一プログラム中でUniform()が定義されている必要がある。2章の<a href="#Uniform">一様乱数</a>に書かれているコードのどれかを持ってくればよい。）。またmath.hのインクルードが必要である。<br><br>
+その他の手段としては、以下の関数のコードが含まれているヘッダーファイル<a href="./code/random.h">random.h</a>を用いる方法がある。たとえば、次のコードはrandom.hを用いて標準正規分布に従う乱数を100個出力するコードである。
+<pre class="prettyprint linenums">
+#include &ltstdio.h>
+#include &ltmath.h>
+#include "random.h"
+
+int main(void){
+	int i;
+	for(i=0;i<100;i++){
+		printf("%lf\n",rand_normal(0.0,1.0));
+	}
+}
+</pre>
+random.hの関数を使うためには、まずrandom.hをCコードと同じフォルダに置き、Cコード中でrandom.hにインクルードする必要がある(2行目)。そうすれば以下の関数が本文中で使用可能になる。random.hでは一様乱数生成にMersenne Twisterが用いられており、乱数の初期化は自動で行われるようになっている。
+
+<h3><a name="Exponential">3.2. 指数分布 (Exponential Distribution)</a></h3>
+[確率分布関数]
+<div class="dist">
+$$p(x;\lambda)=\lambda \exp(-\lambda x)$$
+</div>
+期待値、分散はそれぞれ$E(x)=1/\lambda,\ V(x)=1/\lambda^2$である。<br><br>
+[Cコード]
+<pre class="prettyprint linenums">
+ double rand_exp( double lambda ){
+	return -log(Uniform())/lambda;
+ }
+</pre>
+[解説]一様乱数$x$に対して、$-log(x)/\lambda$が指数分布に従うことを利用。（参考：<a href="#example_Inverse">2.2.1</a>）<br><br>
+
+
+
+<h3><a name="Gauss">3.3. 正規分布・ガウス分布 (Normal Distribution)</a></h3>
+[確率分布関数]
+<div class="dist">
+$$ p(x;\mu,\sigma^2)=\frac{1}{\sqrt{2\pi\sigma^2}}\exp\left\{-\frac{(x-\mu)^2}{2\sigma^2}\right\}$$
+</div>
+期待値・分散はそれぞれ$E(x)=\mu,\ V(x)=\sigma^2$である。<br><br>
+[Cコード]
+<pre class="prettyprint linenums">
+double rand_normal( double mu, double sigma ){
+	double z=sqrt( -2.0*log(Uniform()) ) * sin( 2.0*M_PI*Uniform() );
+	return mu + sigma*z;
+ }
+</pre>
+[解説]
+まず$\mu=0,\sigma=1$を考える。このときには確率分布関数は$p(x)=(1/2\pi)^\frac{1}{2}\exp(-x^2/2)$である。この場合には正規分布は標準正規分布と呼ばれる。ここで独立に標準正規分布に従う乱数$x,y$を考える。ここで直交座標系$(x,y)$から極座標系$(r,\theta)$への変換を考える。$P(x,y)=P(x)P(y)$を用いると、変換後の確率分布関数は$P(r,\theta)=(1/2\pi)r\exp(-r^2/2)$となる。さらに$r$から$r^2$へと変数をかえると$P(r^2,\theta)=(1/2\pi)\exp(-r^2/2)/2$となる。よって$r^2,\theta$はそれぞれ$\lambda=1/2$の指数数分布、$(0,2\pi)$の一様分布に独立に従うことがわかる。よってそれぞれ$(r,\theta)$をそれぞれサンプルしてから、極座標系から直交座標系への変換$x=r\cos(\theta),y=r\sin(\theta)$により、標準正規分布に従う2つの独立な乱数$x,y$が得られる。この方法はBox-Muller法と呼ばれる。つぎに一般の正規分布に従う乱数は標準正規分布に従う乱数$x$を$\sigma x+\mu$とすれば得られる。
+
+
+
+<h3><a name="Chi-squared">3.4. カイ二乗分布 (Chi-squared Distribution)</a></h3>
+[確率分布関数]
+<div class="dist">
+$$p(x;k)=\frac{x^{(k/2)-1}e^{-x/2}}{2^{k/2}\Gamma(k/2)}$$
+</div>
+期待値・分散はそれぞれ$E(x)=k,\ V(x)=2k$である。<br><br>
+[Cコード]
+<pre class="prettyprint linenums">
+double rand_chi( int k ){
+	int i;
+	double z,w=0;
+
+	for(i=0;i&ltk;i++){
+		z=sqrt( -2.0*log(Uniform()) ) * sin( 2.0*M_PI*Uniform() );
+		w+=z*z;
+	}
+
+	return w;
+}
+</pre>
+[解説]自由度kのカイ二乗分布は標準正規分布に従うk個の独立なランダム変数の二乗の和が従う確率分布である。
+
+
+
+<h3><a name="Cauchy">3.5. コーシー分布 (Cauchy Distribution)</a></h3>
+[確率分布関数]
+<div class="dist">
+$$p(x;\mu,\gamma)=\frac{1}{\pi}\left[\frac{\gamma}{(x-\mu)^2+\gamma^2}\right]$$
+</div>
+[Cコード]
+<pre class="prettyprint linenums">
+double rand_cauchy( double mu, double gamma){
+	return mu + gamma*tan(M_PI*( Uniform()-0.5 ));
+}
+</pre>
+[解説]一様乱数$x$に対して$\mu+\gamma\tan(\pi(x-1/2))$がコーシー分布に従うことを利用する。
+
+
+
+<h3><a name="Lognormal">3.6. 対数正規分布 (Lognormal Distribution)</a></h3>
+[確率分布関数]
+<div class="dist">
+$$p(x;\mu,\sigma)=\frac{1}{x\sqrt{2\pi\sigma^2}}\exp\left\{-\frac{(\ln x - \mu )^2}{2\sigma^2}\right\}$$
+</div>
+期待値・分散はそれぞれ$E(x)=e^{\mu+\sigma^2/2},\ V(x)=(e^{\sigma^2}-1)e^{2\mu+\sigma^2}$である。<br><br>
+[Cコード]
+<pre class="prettyprint linenums">
+ double rand_Lnormal( double mu, double sigma ){
+	double z= mu + sigma*sqrt(-2.0*log(Uniform()))*sin(2.0*M_PI*Uniform());//gauss random number
+	return exp(z);
+ }
+</pre>
+[解説]正規分布に従う変数$x$に対して、$\exp(x)$が従う確率分布が対数正規分布である。
+
+
+
+<h3><a name="InverseGauss">3.7. 逆正規分布 (Inverse Gauss Distribution)</a></h3>
+[確率分布関数]
+<div class="dist">
+$$p(x;\mu,\lambda)=\left[\frac{\lambda}{2\pi x^3}\right]^{1/2}\exp\left\{-\frac{\lambda(x-\mu)^2}{2\mu^2x}\right\}$$
+</div>
+期待値・分散はそれぞれ$E(x)=\mu,\ V(x)=\mu^3/\lambda$である。<br><br>
+[Cコード]
+<pre class="prettyprint linenums">
+ double rand_Igauss( double mu, double lambda ){
+	double x,y,w,z;
+	x=sqrt(-2.0*log(Uniform()))*sin(2.0*M_PI*Uniform());//normal random number
+	y=x*x; //chi-squared
+	w= mu + 0.5*y*mu*mu/lambda -(0.5*mu/lambda)*sqrt(4.0*mu*lambda*y+mu*mu*y*y);
+	z=Uniform();
+
+	if( z< mu/(mu+w) )	return w;
+	else				return mu*mu/w;
+ }
+</pre>
+[解説]逆正規分布に従う変数$x$に対して、$\lambda(x-\mu)^2/\mu^2x$が自由度1の$\chi$二乗分布に従うことを利用する。
+
+
+<h3><a name="Gamma">3.8. ガンマ分布 (Gamma Distribution)</a></h3>
+[確率分布関数]
+<div class="dist">
+$$p(x;\theta,\kappa)=\frac{x^{\kappa-1}\exp\{-x/\theta\}}{\theta^\kappa\Gamma(\kappa)}$$
+</div>
+期待値・分散はそれぞれ$E(x)=\kappa\theta,\ V(x)=\kappa\theta^2$である。<br><br>
+[Cコード]
+<pre class="prettyprint linenums">
+ double rand_gamma( double theta, double kappa ){
+
+	int int_kappa;
+	double frac_kappa;
+
+	int_kappa  = (int)kappa;
+	frac_kappa = kappa - (double)int_kappa;
+
+	double u,uu;
+	double b,p,x_frac,x_int;
+	int i;
+
+	/*integer part*/
+	x_int=0;
+	for(i=0;i&ltint_kappa;i++){
+		x_int+=-log(Uniform()); // add expnential random number with mean 1
+	}
+
+	/*fractional part*/
+	if( fabs(frac_kappa) &lt 0.01 ) x_frac=0;
+
+	else{
+		b=(exp(1.0)+frac_kappa)/exp(1.0);
+		while(1){
+
+			u=Uniform();
+			p=b*u;
+
+			uu=Uniform();
+
+			if(p<=1.0){
+				x_frac=pow(p,1.0/frac_kappa);
+				if(uu&lt=exp(-x_frac)) break;
+			}
+
+			else{
+				x_frac=-log((b-p)/frac_kappa);
+				if(uu&lt=pow(x_frac,frac_kappa-1.0)) break;
+			}
+
+		}
+	}
+
+	return (x_int+x_frac)*theta;
+ }
+</pre>
+[解説]参考文献[1]のp. 425参照。
+
+
+
+<h2><a name="Code">4. ソースコード</a></h2>
+1. <a href="./code/MT.h">MT.h</a>：メルセンヌ・ツイスタの関数のヘッダーファイル（使い方：<a href="#Prepare_MT">メルセンヌ・ツイスタの使い方</a>）<br>
+2. <a href="./code/random.h">random.h</a>：3章の関数のヘッダーファイル（使い方：<a href="#Note">プログラム使用について</a>）<br><br>
+
+<h2><a name="Reference">5. 参考文献</a></h2>
+[1] Luc Devroye, "Non-Uniform Random Variate Generation" (available at <a href="http://luc.devroye.org/rnbookindex.html">here</a>).<br><br>
+
+
+</div>
+
+
+</body>
+</html>

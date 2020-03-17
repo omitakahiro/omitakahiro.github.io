@@ -1,0 +1,23 @@
+.highlight{ background-color:#FFddbb;  border-radius: 10px; padding: 10px;}
+.highlight2{ background-color:#D0FFD0; border-radius: 10px; padding: 10px;}
+.theme  { margin-left:20px; margin-right:20px; width: calc(100% - 40px); font-family:Meiryo,sans-serif; max-width:1000px;}
+.dist { background-color: #D0FFD0; border-radius: 10px; padding-top:1px; padding-bottom:1px; }
+
+h2 { border-bottom: solid #008000; border-left: solid 36px #008000; text-indent: 0.5em; }
+h3 { border-bottom: solid #008000; border-left: solid 18px #008000; text-indent: 0.5em; }
+h4 { border-bottom: solid #008000; text-indent: 0.5em; }
+
+pre.prettyprint{
+	white-space: pre !important;
+	word-wrap: normal !important;
+	overflow: auto !important;
+}
+
+.prettyprint ol.linenums > li {
+	list-style-type: decimal;
+}
+
+.resize{
+	width: 95%;
+	max-width: 480px;
+}
